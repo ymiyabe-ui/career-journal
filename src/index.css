@@ -1,0 +1,47 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* テーマカラー。Step5 の設定画面ではここの値を実行時に差し替える */
+@theme {
+  --color-accent: oklch(0.6 0.17 45);
+  --color-accent-soft: oklch(0.95 0.04 60);
+  --color-accent-strong: oklch(0.5 0.17 40);
+  --font-sans: 'Hiragino Sans', 'Noto Sans JP', 'Yu Gothic UI', system-ui, sans-serif;
+}
+
+.dark {
+  --color-accent: oklch(0.72 0.16 55);
+  --color-accent-soft: oklch(0.3 0.06 50);
+  --color-accent-strong: oklch(0.8 0.14 60);
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  @apply bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-100;
+}
+
+@keyframes pop-in {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes fade-out {
+  to { opacity: 0; }
+}
+
+.animate-pop-in {
+  animation: pop-in 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+.animate-fade-out {
+  animation: fade-out 0.3s ease-in both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pop-in, .animate-fade-out { animation: none; }
+}
