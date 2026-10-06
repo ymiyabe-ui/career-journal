@@ -2,7 +2,7 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* テーマカラー。Step5 の設定画面ではここの値を実行時に差し替える */
+/* テーマカラーの既定（オレンジ）。ほかの色は下の data-accent で上書きする */
 @theme {
   --color-accent: oklch(0.6 0.17 45);
   --color-accent-soft: oklch(0.95 0.04 60);
@@ -14,6 +14,49 @@
   --color-accent: oklch(0.72 0.16 55);
   --color-accent-soft: oklch(0.3 0.06 50);
   --color-accent-strong: oklch(0.8 0.14 60);
+}
+
+/* テーマカラーの選択肢。html の data-accent で切り替える（既定のオレンジは上の値）。
+   白い文字を載せる accent は明度を抑え、ダークでは明るくしている */
+:root[data-accent='blue'] {
+  --color-accent: oklch(0.55 0.17 250);
+  --color-accent-soft: oklch(0.95 0.03 250);
+  --color-accent-strong: oklch(0.45 0.17 255);
+}
+:root[data-accent='blue'].dark {
+  --color-accent: oklch(0.72 0.14 250);
+  --color-accent-soft: oklch(0.3 0.06 255);
+  --color-accent-strong: oklch(0.82 0.11 250);
+}
+:root[data-accent='green'] {
+  --color-accent: oklch(0.52 0.14 155);
+  --color-accent-soft: oklch(0.95 0.04 155);
+  --color-accent-strong: oklch(0.42 0.12 155);
+}
+:root[data-accent='green'].dark {
+  --color-accent: oklch(0.72 0.15 155);
+  --color-accent-soft: oklch(0.3 0.06 155);
+  --color-accent-strong: oklch(0.82 0.13 155);
+}
+:root[data-accent='purple'] {
+  --color-accent: oklch(0.55 0.19 300);
+  --color-accent-soft: oklch(0.95 0.03 300);
+  --color-accent-strong: oklch(0.45 0.19 300);
+}
+:root[data-accent='purple'].dark {
+  --color-accent: oklch(0.74 0.15 300);
+  --color-accent-soft: oklch(0.3 0.07 300);
+  --color-accent-strong: oklch(0.83 0.12 300);
+}
+:root[data-accent='pink'] {
+  --color-accent: oklch(0.6 0.19 5);
+  --color-accent-soft: oklch(0.95 0.03 5);
+  --color-accent-strong: oklch(0.5 0.19 5);
+}
+:root[data-accent='pink'].dark {
+  --color-accent: oklch(0.74 0.15 5);
+  --color-accent-soft: oklch(0.3 0.07 5);
+  --color-accent-strong: oklch(0.83 0.12 5);
 }
 
 html {

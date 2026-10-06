@@ -6,6 +6,7 @@
 //   REMIND_HOUR    … リマインドの時刻（任意、既定 21）
 
 var SHEET_NAME = 'entries';
+var SETTINGS_SHEET_NAME = 'settings';
 var DAY_START_HOUR = 4;
 
 function doGet() {
@@ -31,12 +32,16 @@ function doPost(e) {
     var incoming = Array.isArray(body.entries) ? body.entries : [];
     var result = applySync(readTable_(sheet), incoming, Number(body.since) || 0, now);
     if (result.accepted > 0) writeTable_(sheet, result.table);
+    // 設定（入力項目・バッジのしきい値）。古い版のアプリは settings を送らないので、無くても動く
+    var settings = mergeSettings(readSettings_(), body.settings);
+    if (settings.changed) writeSettings_(settings.settings);
     return json_({
       ok: true,
       serverTime: now,
       entries: result.changed,
       accepted: result.accepted,
       rejected: result.rejected,
+      settings: settings.settings,
     });
   } finally {
     lock.releaseLock();
@@ -84,10 +89,33 @@ function remindIfMissing() {
   });
 }
 
-function getSheet_() {
+function getSpreadsheet_() {
   var id = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
   if (!id) throw new Error('SPREADSHEET_ID が未設定です。setup を実行してください');
-  var ss = SpreadsheetApp.openById(id);
+  return SpreadsheetApp.openById(id);
+}
+
+/** 設定は「settings」シートの2行目に JSON で1つだけ置く */
+function readSettings_() {
+  var sheet = getSpreadsheet_().getSheetByName(SETTINGS_SHEET_NAME);
+  if (!sheet || sheet.getLastRow() < 2) return null;
+  try {
+    return JSON.parse(String(sheet.getRange(2, 2).getValue()));
+  } catch (err) {
+    return null;
+  }
+}
+
+function writeSettings_(settings) {
+  var ss = getSpreadsheet_();
+  var sheet = ss.getSheetByName(SETTINGS_SHEET_NAME) || ss.insertSheet(SETTINGS_SHEET_NAME);
+  var range = sheet.getRange(1, 1, 2, 3);
+  range.setNumberFormat('@');
+  range.setValues([['key', 'value', 'updatedAt'], ['app', JSON.stringify(settings), settings.updatedAt]]);
+}
+
+function getSheet_() {
+  var ss = getSpreadsheet_();
   var sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);

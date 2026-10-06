@@ -3,11 +3,10 @@ import { ChevronLeft, ChevronRight, PencilLine } from 'lucide-react'
 import { EntryForm } from '../components/EntryForm'
 import { EntrySummary } from '../components/EntrySummary'
 import { Button, Card } from '../components/ui'
-import { DEFAULT_FIELDS } from '../config/fields'
 import { formatMonthJa, monthMatrix, shiftMonth } from '../lib/calendar'
 import { daysBetween, formatDateJa } from '../lib/date'
 import { isFilled } from '../lib/stats'
-import { useJournal } from '../store'
+import { useFields, useJournal } from '../store'
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -17,6 +16,7 @@ interface Props {
 
 export function CalendarView({ onSave }: Props) {
   const today = useJournal((s) => s.today)
+  const fields = useFields()
   const entries = useJournal((s) => s.entries)
   const [month, setMonth] = useState(today.slice(0, 7))
   const [selected, setSelected] = useState<string | null>(null)
@@ -100,7 +100,7 @@ export function CalendarView({ onSave }: Props) {
           <h2 className="mb-2 font-bold">{formatDateJa(selected)}</h2>
           {filled && !editing ? (
             <>
-              <EntrySummary entry={entry} fields={DEFAULT_FIELDS} />
+              <EntrySummary entry={entry} fields={fields} />
               <Button variant="ghost" className="mt-3 -ml-2" onClick={() => setEditing(true)}>
                 <PencilLine className="size-4" />
                 編集する
@@ -117,7 +117,7 @@ export function CalendarView({ onSave }: Props) {
               )}
               <EntryForm
                 key={`${selected}-${editing}`}
-                fields={DEFAULT_FIELDS}
+                fields={fields}
                 initial={filled ? entry.fields : undefined}
                 minimal={false}
                 autoFocus

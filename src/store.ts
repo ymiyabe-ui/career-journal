@@ -1,11 +1,13 @@
+import { useMemo } from 'react'
 import { create } from 'zustand'
 import { DAY_START_HOUR } from './config/fields'
 import { logicalDate } from './lib/date'
 import { pickNewer } from './lib/merge'
+import { activeFields, defaultSettings, sanitizeSettings } from './lib/settings'
 import { isFilled } from './lib/stats'
 import { createDexieRepository } from './storage/dexie'
-import { CURSOR_KEY, fetchTransport, runSync, SyncError, type SyncConfig } from './sync/sync'
-import { SCHEMA_VERSION, type JournalEntry } from './types'
+import { CURSOR_KEY, fetchTransport, runSync, SETTINGS_KEY, SyncError, type SyncConfig } from './sync/sync'
+import { SCHEMA_VERSION, type AppSettings, type FieldDef, type JournalEntry } from './types'
 
 const repo = createDexieRepository()
 
@@ -20,6 +22,7 @@ interface JournalState {
   loaded: boolean
   /** 記録の対象日としての「今日」。日付をまたいだら refreshToday で更新する */
   today: string
+  settings: AppSettings
   syncConfig: SyncConfig | null
   syncState: SyncState
   syncMessage: string | null
@@ -30,6 +33,8 @@ interface JournalState {
   remove(date: string): Promise<void>
   /** 読み込んだ件数（上書きしたもの）を返す */
   importEntries(entries: JournalEntry[]): Promise<number>
+  /** 設定（入力項目・バッジのしきい値）を変える。更新時刻を付けて保存し、同期する */
+  updateSettings(change: (s: AppSettings) => AppSettings): Promise<void>
   /** null で同期をやめる（端末の記録は残す） */
   setSyncConfig(config: SyncConfig | null): Promise<void>
   sync(): Promise<void>
@@ -51,11 +56,12 @@ export const useJournal = create<JournalState>((set, get) => {
     if (!config) return
     set({ syncState: 'syncing' })
     try {
-      const { applied, rejected } = await runSync(repo, config, fetchTransport)
+      const { applied, rejected, settings } = await runSync(repo, config, fetchTransport)
       const lastSyncedAt = new Date().toISOString()
       await repo.setMeta(LAST_SYNCED_KEY, lastSyncedAt)
       set((s) => ({
         entries: { ...s.entries, ...Object.fromEntries(applied.map((e) => [e.id, e])) },
+        settings: settings ?? s.settings,
         syncState: 'idle',
         syncMessage: rejected > 0 ? `${rejected}件は形が合わず同期できませんでした` : null,
         lastSyncedAt,
@@ -73,20 +79,23 @@ export const useJournal = create<JournalState>((set, get) => {
     entries: {},
     loaded: false,
     today: logicalDate(new Date(), DAY_START_HOUR),
+    settings: defaultSettings(),
     syncConfig: null,
     syncState: 'off',
     syncMessage: null,
     lastSyncedAt: null,
 
     async load() {
-      const [list, syncConfig, lastSyncedAt] = await Promise.all([
+      const [list, syncConfig, lastSyncedAt, rawSettings] = await Promise.all([
         repo.list(),
         repo.getMeta<SyncConfig>(CONFIG_KEY),
         repo.getMeta<string>(LAST_SYNCED_KEY),
+        repo.getMeta<unknown>(SETTINGS_KEY),
       ])
       set({
         entries: Object.fromEntries(list.map((e) => [e.id, e])),
         loaded: true,
+        settings: sanitizeSettings(rawSettings) ?? defaultSettings(),
         syncConfig: syncConfig ?? null,
         syncState: syncConfig ? 'idle' : 'off',
         lastSyncedAt: lastSyncedAt ?? null,
@@ -128,6 +137,13 @@ export const useJournal = create<JournalState>((set, get) => {
       return newer.length
     },
 
+    async updateSettings(change) {
+      const next = { ...change(get().settings), updatedAt: new Date().toISOString() }
+      await repo.setMeta(SETTINGS_KEY, next)
+      set({ settings: next })
+      void get().sync()
+    },
+
     async setSyncConfig(config) {
       await repo.setMeta(CONFIG_KEY, config)
       if (!config) {
@@ -161,3 +177,9 @@ export const useJournal = create<JournalState>((set, get) => {
     },
   }
 })
+
+/** 入力欄に出す項目。設定が変わったときだけ作り直す */
+export function useFields(): FieldDef[] {
+  const settings = useJournal((s) => s.settings)
+  return useMemo(() => activeFields(settings), [settings])
+}

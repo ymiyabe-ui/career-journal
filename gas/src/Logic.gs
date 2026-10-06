@@ -122,9 +122,43 @@ function hasEntryOn(table, date) {
   });
 }
 
+var SETTINGS_WINS_ID = 'wins';
+
+function validThresholds_(a) {
+  if (!Array.isArray(a) || a.length < 1 || a.length > 10) return false;
+  return a.every(function (n) { return typeof n === 'number' && n % 1 === 0 && n >= 1 && n <= 9999; });
+}
+
+/** アプリの設定（入力項目・バッジのしきい値）の形を確かめる。おかしいものは保存しない */
+function isValidSettings(s) {
+  if (!s || typeof s !== 'object') return false;
+  if (typeof s.updatedAt !== 'string' || !ISO_RE.test(s.updatedAt)) return false;
+  if (!Array.isArray(s.fields) || s.fields.length < 1 || s.fields.length > 12) return false;
+  var seen = {};
+  for (var i = 0; i < s.fields.length; i++) {
+    var f = s.fields[i];
+    if (!f || typeof f.id !== 'string' || !FIELD_ID_RE.test(f.id) || seen[f.id]) return false;
+    if (typeof f.label !== 'string' || f.label.trim() === '' || f.label.length > 40) return false;
+    if (f.placeholder != null && typeof f.placeholder !== 'string') return false;
+    seen[f.id] = true;
+  }
+  if (s.fields[0].id !== SETTINGS_WINS_ID || s.fields[0].hidden) return false;
+  if (!validThresholds_(s.streakMilestones) || !validThresholds_(s.totalMilestones)) return false;
+  return JSON.stringify(s).length < 5000;
+}
+
+/** 設定は更新時刻が新しいほうを残す。届いたものが不正なら何も変えない */
+function mergeSettings(stored, incoming) {
+  var current = isValidSettings(stored) ? stored : null;
+  if (!isValidSettings(incoming)) return { settings: current, changed: false };
+  if (!current || current.updatedAt < incoming.updatedAt) return { settings: incoming, changed: true };
+  return { settings: current, changed: false };
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
     FIXED_HEADERS: FIXED_HEADERS, isValidEntry: isValidEntry, ensureHeaders: ensureHeaders,
     entryFromRow: entryFromRow, rowFromEntry: rowFromEntry, applySync: applySync,
-    logicalTodayJst: logicalTodayJst, hasEntryOn: hasEntryOn };
+    logicalTodayJst: logicalTodayJst, hasEntryOn: hasEntryOn,
+    isValidSettings: isValidSettings, mergeSettings: mergeSettings };
 }

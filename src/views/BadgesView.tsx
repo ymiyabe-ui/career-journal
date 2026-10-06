@@ -12,14 +12,18 @@ import type { Badge } from '../types'
 export function BadgesView() {
   const entries = useJournal((s) => s.entries)
   const today = useJournal((s) => s.today)
+  const settings = useJournal((s) => s.settings)
 
   const { badges, stats } = useMemo(() => {
     const list = Object.values(entries)
     return {
-      badges: computeBadges(list, today, DAY_START_HOUR),
+      badges: computeBadges(list, today, DAY_START_HOUR, {
+        streak: settings.streakMilestones,
+        total: settings.totalMilestones,
+      }),
       stats: computeStats(list, today, DAY_START_HOUR),
     }
-  }, [entries, today])
+  }, [entries, today, settings])
 
   return (
     <div className="space-y-4">

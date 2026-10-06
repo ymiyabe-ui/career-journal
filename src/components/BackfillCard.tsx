@@ -2,10 +2,9 @@ import { useState } from 'react'
 import { CalendarPlus } from 'lucide-react'
 import { EntryForm } from './EntryForm'
 import { Card } from './ui'
-import { DEFAULT_FIELDS } from '../config/fields'
 import { daysBetween, formatDateJa, shiftDate } from '../lib/date'
 import { isFilled } from '../lib/stats'
-import { useJournal } from '../store'
+import { useFields, useJournal } from '../store'
 
 const DATE_INPUT =
   'rounded-xl border border-stone-300 bg-white px-3 py-2 text-base focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none dark:border-stone-700 dark:bg-stone-950'
@@ -13,6 +12,7 @@ const DATE_INPUT =
 /** 日付を選んで、その日の記録を書く（過去の書き忘れの救済）。記録済みの日を選ぶと編集になる */
 export function BackfillCard({ onSave }: { onSave(date: string, values: Record<string, string>): Promise<void> }) {
   const today = useJournal((s) => s.today)
+  const fields = useFields()
   const entries = useJournal((s) => s.entries)
   const [open, setOpen] = useState(false)
   const [date, setDate] = useState('')
@@ -65,7 +65,7 @@ export function BackfillCard({ onSave }: { onSave(date: string, values: Record<s
           </p>
           <EntryForm
             key={date}
-            fields={DEFAULT_FIELDS}
+            fields={fields}
             initial={exists ? existing.fields : undefined}
             minimal={false}
             autoFocus

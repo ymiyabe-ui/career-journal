@@ -1,10 +1,11 @@
 import { Flame, Ticket } from 'lucide-react'
 import { nextStreakMilestone } from '../lib/badges'
+import { useJournal } from '../store'
 import type { Stats } from '../types'
 
 /** 「あと◯日で…」の予告。次のバッジまでの近さに合わせて言い方を変える */
-function milestoneHint(stats: Stats): string | null {
-  const next = nextStreakMilestone(stats.currentStreak)
+function milestoneHint(stats: Stats, thresholds: number[]): string | null {
+  const next = nextStreakMilestone(stats.currentStreak, thresholds)
   if (!next) return null
   const need = next.threshold - stats.currentStreak
   if (need === 1) {
@@ -23,7 +24,8 @@ function statusHint(stats: Stats): string {
 
 export function StreakHeader({ stats }: { stats: Stats }) {
   const { currentStreak, todayDone, restTickets } = stats
-  const milestone = milestoneHint(stats)
+  const thresholds = useJournal((s) => s.settings.streakMilestones)
+  const milestone = milestoneHint(stats, thresholds)
 
   return (
     <header className="flex items-center gap-4 px-1 pt-6 pb-4">

@@ -3,11 +3,10 @@ import { History, PencilLine } from 'lucide-react'
 import { EntryForm } from '../components/EntryForm'
 import { EntrySummary } from '../components/EntrySummary'
 import { Button, Card } from '../components/ui'
-import { DEFAULT_FIELDS } from '../config/fields'
 import { formatDateJa, shiftDate } from '../lib/date'
 import { isFilled } from '../lib/stats'
 import { loadPref, savePref } from '../lib/theme'
-import { useJournal } from '../store'
+import { useFields, useJournal } from '../store'
 
 const MINIMAL_KEY = 'cj-minimal'
 
@@ -17,6 +16,7 @@ interface Props {
 
 export function TodayView({ onSave }: Props) {
   const today = useJournal((s) => s.today)
+  const fields = useFields()
   const entries = useJournal((s) => s.entries)
   const [editing, setEditing] = useState(false)
   const [backfilling, setBackfilling] = useState(false)
@@ -57,7 +57,7 @@ export function TodayView({ onSave }: Props) {
 
         {isFilled(todayEntry) && !editing ? (
           <>
-            <EntrySummary entry={todayEntry} fields={DEFAULT_FIELDS} />
+            <EntrySummary entry={todayEntry} fields={fields} />
             <Button variant="ghost" className="mt-3 -ml-2" onClick={() => setEditing(true)}>
               <PencilLine className="size-4" />
               編集する
@@ -66,7 +66,7 @@ export function TodayView({ onSave }: Props) {
         ) : (
           <EntryForm
             key={`${today}-${editing}`}
-            fields={DEFAULT_FIELDS}
+            fields={fields}
             initial={todayEntry && !todayEntry.deleted ? todayEntry.fields : undefined}
             minimal={minimal}
             autoFocus
@@ -87,7 +87,7 @@ export function TodayView({ onSave }: Props) {
               昨日 <span className="text-sm font-normal text-stone-500">{formatDateJa(yesterday)}</span>
             </h2>
             <EntryForm
-              fields={DEFAULT_FIELDS}
+              fields={fields}
               minimal={minimal}
               autoFocus
               onCancel={() => setBackfilling(false)}

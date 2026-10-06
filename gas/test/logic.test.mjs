@@ -97,3 +97,47 @@ test('リマインド判定：削除済み・空の記録は書いたことに�
   assert.equal(L.hasEntryOn(t, '2026-10-04'), true)
   assert.equal(L.hasEntryOn(t, '2026-10-05'), false)
 })
+
+// ---- 設定（入力項目・バッジのしきい値）の同期 ----
+
+const settings = (updatedAt, extra = {}) => ({
+  fields: [
+    { id: 'wins', label: '今日の達成', placeholder: '', required: true },
+    { id: 'learning', label: '学び・気づき', placeholder: '' },
+  ],
+  streakMilestones: [3, 7, 14],
+  totalMilestones: [10, 30],
+  updatedAt,
+  ...extra,
+})
+
+test('設定：更新時刻が新しいほうを残す', () => {
+  const old = settings('2026-10-01T00:00:00.000Z')
+  const mid = settings('2026-10-02T00:00:00.000Z', { streakMilestones: [5] })
+  assert.deepEqual(L.mergeSettings(null, old), { settings: old, changed: true })
+  assert.deepEqual(L.mergeSettings(old, mid), { settings: mid, changed: true })
+  assert.deepEqual(L.mergeSettings(mid, old), { settings: mid, changed: false })
+})
+
+test('設定：届かない（古い版のアプリ）・形が不正なときは何も変えず、保存済みを返す', () => {
+  const saved = settings('2026-10-02T00:00:00.000Z')
+  assert.deepEqual(L.mergeSettings(saved, undefined), { settings: saved, changed: false })
+  assert.deepEqual(L.mergeSettings(null, undefined), { settings: null, changed: false })
+  const bads = [
+    settings('きのう'),
+    settings('2026-10-03T00:00:00.000Z', { fields: [] }),
+    settings('2026-10-03T00:00:00.000Z', { fields: [{ id: 'learning', label: 'x' }] }), // 先頭が wins でない
+    settings('2026-10-03T00:00:00.000Z', { fields: [{ id: 'wins', label: 'a', hidden: true }] }), // wins を隠せない
+    settings('2026-10-03T00:00:00.000Z', { fields: [{ id: 'wins', label: 'a' }, { id: '=x', label: 'b' }] }),
+    settings('2026-10-03T00:00:00.000Z', { fields: [{ id: 'wins', label: 'a' }, { id: 'wins', label: 'b' }] }),
+    settings('2026-10-03T00:00:00.000Z', { streakMilestones: [] }),
+    settings('2026-10-03T00:00:00.000Z', { totalMilestones: [0] }),
+    settings('2026-10-03T00:00:00.000Z', { totalMilestones: [1.5] }),
+  ]
+  for (const bad of bads) assert.deepEqual(L.mergeSettings(saved, bad), { settings: saved, changed: false })
+})
+
+test('設定：保存済みの設定が壊れていたら、届いた正しい設定で置き換える', () => {
+  const incoming = settings('2026-10-03T00:00:00.000Z')
+  assert.deepEqual(L.mergeSettings({ broken: true }, incoming), { settings: incoming, changed: true })
+})

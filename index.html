@@ -10,8 +10,11 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
     <title>Career Journal</title>
     <script>
-      // 描画前にダークモードを当てて、白く光るのを防ぐ
+      // 描画前にダークモードとテーマカラーを当てて、白く光ったり色が変わったりするのを防ぐ
       try {
+        var a = localStorage.getItem('cj-accent')
+        if (a === 'blue' || a === 'green' || a === 'purple' || a === 'pink')
+          document.documentElement.dataset.accent = a
         var t = localStorage.getItem('cj-theme')
         if (t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches))
           document.documentElement.classList.add('dark')

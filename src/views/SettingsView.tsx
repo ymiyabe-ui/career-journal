@@ -1,10 +1,13 @@
 import { useRef, useState, type ReactNode } from 'react'
-import { Download, Monitor, Moon, Sun, Upload } from 'lucide-react'
+import { Check, Download, Monitor, Moon, Sun, Upload } from 'lucide-react'
+import { FieldsEditor } from '../components/FieldsEditor'
+import { MilestonesEditor } from '../components/MilestonesEditor'
+import { ReminderCard } from '../components/ReminderCard'
 import { SyncCard } from '../components/SyncCard'
 import { Button, Card } from '../components/ui'
 import { DAY_START_HOUR } from '../config/fields'
 import { downloadBackup, parseBackup } from '../lib/backup'
-import { loadTheme, saveTheme, type ThemeMode } from '../lib/theme'
+import { ACCENTS, loadAccent, loadTheme, saveAccent, saveTheme, type AccentId, type ThemeMode } from '../lib/theme'
 import { useJournal } from '../store'
 
 const THEMES: { mode: ThemeMode; label: string; icon: ReactNode }[] = [
@@ -18,6 +21,7 @@ export function SettingsView({ persisted }: { persisted: boolean | null }) {
   const importEntries = useJournal((s) => s.importEntries)
   const syncing = useJournal((s) => s.syncConfig !== null)
   const [theme, setTheme] = useState(loadTheme)
+  const [accent, setAccent] = useState<AccentId>(loadAccent)
   const [message, setMessage] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -54,12 +58,41 @@ export function SettingsView({ persisted }: { persisted: boolean | null }) {
             </button>
           ))}
         </div>
-        <p className="mt-3 text-sm text-stone-600 dark:text-stone-400">
+        <h3 className="mt-4 mb-2 text-sm font-semibold">テーマカラー</h3>
+        <div className="flex gap-3">
+          {ACCENTS.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              aria-label={a.label}
+              aria-pressed={accent === a.id}
+              title={a.label}
+              onClick={() => {
+                setAccent(a.id)
+                saveAccent(a.id)
+              }}
+              className={`flex size-10 items-center justify-center rounded-full text-white ring-offset-2 ring-offset-white dark:ring-offset-stone-900 ${
+                accent === a.id ? 'ring-2 ring-stone-900 dark:ring-stone-100' : ''
+              }`}
+              style={{ backgroundColor: a.swatch }}
+            >
+              {accent === a.id && <Check className="size-5" />}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1 text-xs text-stone-500">この端末だけの設定です。</p>
+        <p className="mt-4 text-sm text-stone-600 dark:text-stone-400">
           1日の区切り：午前{DAY_START_HOUR}時（それより前に書いた分は前日の記録になります）
         </p>
       </Card>
 
+      <FieldsEditor />
+
+      <MilestonesEditor />
+
       <SyncCard />
+
+      <ReminderCard />
 
       <Card>
         <h2 className="mb-1 font-bold">データの控え</h2>

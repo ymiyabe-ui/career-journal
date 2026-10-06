@@ -1,15 +1,15 @@
 import { useMemo, useState } from 'react'
 import { Copy, Download } from 'lucide-react'
 import { Button, Card } from '../components/ui'
-import { DEFAULT_FIELDS } from '../config/fields'
 import { copyText, saveTextFile } from '../lib/download'
 import { isFilled } from '../lib/stats'
 import { buildSummary, PERIODS, resolvePeriod, type PeriodId } from '../lib/summary'
-import { useJournal } from '../store'
+import { useFields, useJournal } from '../store'
 
 export function SummaryView() {
   const entries = useJournal((s) => s.entries)
   const today = useJournal((s) => s.today)
+  const fields = useFields()
   const [period, setPeriod] = useState<PeriodId>('last30')
   const [message, setMessage] = useState<string | null>(null)
 
@@ -19,8 +19,8 @@ export function SummaryView() {
       .filter(isFilled)
       .map((e) => e.date)
       .sort()[0]
-    return buildSummary(list, DEFAULT_FIELDS, resolvePeriod(period, today, earliest))
-  }, [entries, today, period])
+    return buildSummary(list, fields, resolvePeriod(period, today, earliest))
+  }, [entries, today, period, fields])
 
   const choose = (id: PeriodId) => {
     setPeriod(id)

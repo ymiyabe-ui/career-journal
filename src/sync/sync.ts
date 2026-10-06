@@ -1,5 +1,6 @@
 import type { EntryRepository } from '../storage/repository'
-import type { JournalEntry } from '../types'
+import { sanitizeSettings } from '../lib/settings'
+import type { AppSettings, JournalEntry } from '../types'
 
 /** 同期先（GAS の Web アプリ）。値は端末の設定画面で入れ、コードには書かない */
 export interface SyncConfig {
@@ -13,6 +14,8 @@ export interface SyncRequest {
   /** 前回の同期でサーバーから受け取った時刻。これより後にサーバーで変わった分を受け取る */
   since: number
   entries: JournalEntry[]
+  /** この端末の設定。サーバーのほうが新しければ、応答で新しい設定が返る */
+  settings: AppSettings | null
 }
 
 export interface SyncResponse {
@@ -21,6 +24,7 @@ export interface SyncResponse {
   serverTime?: number
   entries?: JournalEntry[]
   rejected?: number
+  settings?: AppSettings | null
 }
 
 export type Transport = (config: SyncConfig, body: SyncRequest) => Promise<SyncResponse>
@@ -40,6 +44,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 }
 
 export const CURSOR_KEY = 'syncCursor'
+export const SETTINGS_KEY = 'settings'
 
 /**
  * 未送信の記録を送り、サーバー側で増えた・変わった記録を受け取る。
@@ -49,14 +54,22 @@ export async function runSync(
   repo: EntryRepository,
   config: SyncConfig,
   transport: Transport,
-): Promise<{ applied: JournalEntry[]; pushed: number; rejected: number }> {
+): Promise<{ applied: JournalEntry[]; pushed: number; rejected: number; settings: AppSettings | null }> {
   const before = new Map((await repo.list()).map((e) => [e.id, e]))
   const pending = (await repo.pendingIds())
     .map((id) => before.get(id))
     .filter((e): e is JournalEntry => !!e)
   const since = (await repo.getMeta<number>(CURSOR_KEY)) ?? 0
+  const localSettings = sanitizeSettings(await repo.getMeta<unknown>(SETTINGS_KEY))
 
-  const res = await transport(config, { action: 'sync', token: config.token, since, entries: pending })
+  const res = await transport(config, {
+    action: 'sync',
+    token: config.token,
+    since,
+    entries: pending,
+    // 一度も変えていない設定（updatedAt が空）は送らない
+    settings: localSettings && localSettings.updatedAt !== '' ? localSettings : null,
+  })
   if (!res.ok || typeof res.serverTime !== 'number') {
     const code = res.error ?? 'unknown'
     throw new SyncError(code, ERROR_MESSAGES[code] ?? `同期に失敗しました（${code}）`)
@@ -71,7 +84,18 @@ export async function runSync(
   )
   await repo.setMeta(CURSOR_KEY, res.serverTime)
 
-  return { applied, pushed: pending.length, rejected: res.rejected ?? 0 }
+  // サーバーの設定のほうが新しければ取り込む。送っている間に手元で直した分は、手元を残す
+  let appliedSettings: AppSettings | null = null
+  const remote = sanitizeSettings(res.settings)
+  if (remote) {
+    const current = sanitizeSettings(await repo.getMeta<unknown>(SETTINGS_KEY))
+    if (!current || current.updatedAt < remote.updatedAt) {
+      await repo.setMeta(SETTINGS_KEY, remote)
+      appliedSettings = remote
+    }
+  }
+
+  return { applied, pushed: pending.length, rejected: res.rejected ?? 0, settings: appliedSettings }
 }
 
 /** GAS へ text/plain で POST する（プリフライトを起こさないため） */

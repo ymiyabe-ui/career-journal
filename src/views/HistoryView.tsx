@@ -4,10 +4,9 @@ import { BackfillCard } from '../components/BackfillCard'
 import { EntryForm } from '../components/EntryForm'
 import { EntrySummary } from '../components/EntrySummary'
 import { Button, Card } from '../components/ui'
-import { DEFAULT_FIELDS } from '../config/fields'
 import { formatDateJa } from '../lib/date'
 import { isFilled } from '../lib/stats'
-import { useJournal } from '../store'
+import { useFields, useJournal } from '../store'
 
 interface Props {
   onSave(date: string, values: Record<string, string>): Promise<void>
@@ -16,6 +15,7 @@ interface Props {
 export function HistoryView({ onSave }: Props) {
   const entries = useJournal((s) => s.entries)
   const remove = useJournal((s) => s.remove)
+  const fields = useFields()
   const [editingDate, setEditingDate] = useState<string | null>(null)
 
   const list = Object.values(entries)
@@ -61,7 +61,7 @@ export function HistoryView({ onSave }: Props) {
           </div>
           {editingDate === entry.date ? (
             <EntryForm
-              fields={DEFAULT_FIELDS}
+              fields={fields}
               initial={entry.fields}
               minimal={false}
               autoFocus
@@ -73,7 +73,7 @@ export function HistoryView({ onSave }: Props) {
               }}
             />
           ) : (
-            <EntrySummary entry={entry} fields={DEFAULT_FIELDS} />
+            <EntrySummary entry={entry} fields={fields} />
           )}
         </Card>
       ))}

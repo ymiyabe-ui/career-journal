@@ -22,6 +22,18 @@ export interface FieldDef {
   label: string
   placeholder: string
   required?: boolean
+  /** 画面から隠す。過去の記録の中身は残る */
+  hidden?: boolean
+}
+
+/** 端末をまたいで同期する設定 */
+export interface AppSettings {
+  /** 先頭は必ず「今日の達成」（id は WINS_FIELD） */
+  fields: FieldDef[]
+  streakMilestones: number[]
+  totalMilestones: number[]
+  /** 変更した時刻。新しいほうを残す。初期値は空文字 */
+  updatedAt: string
 }
 
 export interface Stats {

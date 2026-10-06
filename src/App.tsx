@@ -60,18 +60,22 @@ export default function App() {
 
   const handleSave = useCallback(
     async (date: string, values: Record<string, string>) => {
+      const thresholds = (state: ReturnType<typeof useJournal.getState>) => ({
+        streak: state.settings.streakMilestones,
+        total: state.settings.totalMilestones,
+      })
       const snapshot = (state: ReturnType<typeof useJournal.getState>) => {
         const list = Object.values(state.entries)
         return {
           stats: computeStats(list, state.today, DAY_START_HOUR),
-          earned: earnedIds(computeBadges(list, state.today, DAY_START_HOUR)),
+          earned: earnedIds(computeBadges(list, state.today, DAY_START_HOUR, thresholds(state))),
         }
       }
       const before = snapshot(useJournal.getState())
       const kind = await save(date, values)
       const state = useJournal.getState()
       const after = snapshot(state)
-      const badges = computeBadges(Object.values(state.entries), state.today, DAY_START_HOUR).filter(
+      const badges = computeBadges(Object.values(state.entries), state.today, DAY_START_HOUR, thresholds(state)).filter(
         (b) => b.earnedOn && !before.earned.has(b.id) && after.earned.has(b.id),
       )
       setCelebration({
