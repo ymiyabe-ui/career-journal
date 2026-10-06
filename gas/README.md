@@ -28,10 +28,12 @@ clasp は名前付きの認証（`-u onepercent`）を使い、ほかのツー�
    ```sh
    clasp -u onepercent login
    ```
-3. プロジェクトを作ってコードを送る（`.clasp.json` ができる。gitignore 済み）
+3. プロジェクトを作ってコードを送る（`.clasp.json` ができる。gitignore 済み）。
+   `create-script` は `src/appsscript.json` を既定の内容（時刻が New York・Web アプリ設定なし）で上書きするので、push の前に git で元に戻す
    ```sh
    clasp -u onepercent create-script --type standalone --title "Career Journal Sync" --rootDir src
-   clasp -u onepercent push
+   git checkout -- src/appsscript.json
+   clasp -u onepercent push --force
    ```
 4. エディタを開き、関数 `setup` を選んで実行する。初回は権限の承認を求められる（スプレッドシート・メール送信・トリガー）
    ```sh

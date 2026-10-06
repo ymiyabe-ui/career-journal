@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { PencilLine, Trash2 } from 'lucide-react'
+import { BackfillCard } from '../components/BackfillCard'
 import { EntryForm } from '../components/EntryForm'
 import { EntrySummary } from '../components/EntrySummary'
 import { Button, Card } from '../components/ui'
@@ -21,16 +22,14 @@ export function HistoryView({ onSave }: Props) {
     .filter(isFilled)
     .sort((a, b) => b.date.localeCompare(a.date))
 
-  if (list.length === 0) {
-    return (
-      <p className="py-16 text-center text-sm text-stone-500">
-        まだ記録がありません。「今日」から1行書いてみましょう。
-      </p>
-    )
-  }
-
   return (
     <div className="space-y-3">
+      <BackfillCard onSave={onSave} />
+      {list.length === 0 && (
+        <p className="py-12 text-center text-sm text-stone-500">
+          まだ記録がありません。「今日」から1行書くか、日付を選んで書いてみましょう。
+        </p>
+      )}
       {list.map((entry) => (
         <Card key={entry.id}>
           <div className="mb-2 flex items-center justify-between">
