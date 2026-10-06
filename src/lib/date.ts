@@ -19,3 +19,13 @@ export function daysBetween(from: string, to: string): number {
 export function formatDateJa(date: string): string {
   return format(parseISO(date), 'M月d日（E）', { locale: ja })
 }
+
+/** 例：10/5（日） */
+export function formatShortJa(date: string): string {
+  return format(parseISO(date), 'M/d（E）', { locale: ja })
+}
+
+/** 例：2026/10/05 */
+export function formatSlash(date: string): string {
+  return format(parseISO(date), 'yyyy/MM/dd')
+}

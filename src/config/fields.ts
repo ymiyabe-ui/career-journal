@@ -22,3 +22,6 @@ export const DEFAULT_FIELDS: FieldDef[] = [
 
 /** 1日の区切り（時）。深夜にこの時刻より前に書いた分は前日の記録になる */
 export const DAY_START_HOUR = 4
+
+/** 「達成の数」を数える項目。1行を1件として数える */
+export const WINS_FIELD = 'wins'

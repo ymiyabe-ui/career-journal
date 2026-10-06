@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Award, BookOpen, PenLine, Settings } from 'lucide-react'
+import { Award, BookOpen, CalendarDays, PenLine, Settings } from 'lucide-react'
 import { Celebration, type CelebrationInfo } from './components/Celebration'
 import { StatRow, StreakHeader } from './components/StreakHeader'
 import { SyncBadge } from './components/SyncBadge'
@@ -10,14 +10,16 @@ import { requestPersistence } from './storage/dexie'
 import { useJournal } from './store'
 import { BadgesView } from './views/BadgesView'
 import { HistoryView } from './views/HistoryView'
+import { ReviewView } from './views/ReviewView'
 import { SettingsView } from './views/SettingsView'
 import { TodayView } from './views/TodayView'
 
-type Tab = 'today' | 'history' | 'badges' | 'settings'
+type Tab = 'today' | 'history' | 'review' | 'badges' | 'settings'
 
 const TABS: { id: Tab; label: string; icon: typeof PenLine }[] = [
   { id: 'today', label: '今日', icon: PenLine },
   { id: 'history', label: '記録', icon: BookOpen },
+  { id: 'review', label: '振り返り', icon: CalendarDays },
   { id: 'badges', label: 'バッジ', icon: Award },
   { id: 'settings', label: '設定', icon: Settings },
 ]
@@ -102,6 +104,8 @@ export default function App() {
           <TodayView onSave={handleSave} />
         ) : tab === 'history' ? (
           <HistoryView onSave={handleSave} />
+        ) : tab === 'review' ? (
+          <ReviewView onSave={handleSave} />
         ) : tab === 'badges' ? (
           <BadgesView />
         ) : (
@@ -110,7 +114,7 @@ export default function App() {
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 border-t border-stone-200 bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur dark:border-stone-800 dark:bg-stone-950/90">
-        <div className="mx-auto grid max-w-md grid-cols-4">
+        <div className="mx-auto grid max-w-md grid-cols-5">
           {TABS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}

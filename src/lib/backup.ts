@@ -1,5 +1,6 @@
 import { format } from 'date-fns'
 import { SCHEMA_VERSION, type JournalEntry } from '../types'
+import { saveTextFile } from './download'
 import { isFilled } from './stats'
 
 const APP_ID = 'career-journal'
@@ -22,13 +23,11 @@ export function buildBackup(entries: JournalEntry[]): string {
 }
 
 export function downloadBackup(entries: JournalEntry[]): void {
-  const blob = new Blob([buildBackup(entries)], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `career-journal-${format(new Date(), 'yyyyMMdd-HHmm')}.json`
-  a.click()
-  URL.revokeObjectURL(url)
+  saveTextFile(
+    `career-journal-${format(new Date(), 'yyyyMMdd-HHmm')}.json`,
+    buildBackup(entries),
+    'application/json',
+  )
 }
 
 /** 形が合わないファイルは例外を投げる。メッセージはそのまま画面に出す */
