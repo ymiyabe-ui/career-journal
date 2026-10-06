@@ -1,21 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { BookOpen, PenLine, Settings } from 'lucide-react'
+import { Award, BookOpen, PenLine, Settings } from 'lucide-react'
 import { Celebration, type CelebrationInfo } from './components/Celebration'
 import { StatRow, StreakHeader } from './components/StreakHeader'
 import { SyncBadge } from './components/SyncBadge'
 import { DAY_START_HOUR } from './config/fields'
+import { computeBadges, earnedIds } from './lib/badges'
 import { computeStats } from './lib/stats'
 import { requestPersistence } from './storage/dexie'
 import { useJournal } from './store'
+import { BadgesView } from './views/BadgesView'
 import { HistoryView } from './views/HistoryView'
 import { SettingsView } from './views/SettingsView'
 import { TodayView } from './views/TodayView'
 
-type Tab = 'today' | 'history' | 'settings'
+type Tab = 'today' | 'history' | 'badges' | 'settings'
 
 const TABS: { id: Tab; label: string; icon: typeof PenLine }[] = [
   { id: 'today', label: '今日', icon: PenLine },
   { id: 'history', label: '記録', icon: BookOpen },
+  { id: 'badges', label: 'バッジ', icon: Award },
   { id: 'settings', label: '設定', icon: Settings },
 ]
 
@@ -55,10 +58,27 @@ export default function App() {
 
   const handleSave = useCallback(
     async (date: string, values: Record<string, string>) => {
+      const snapshot = (state: ReturnType<typeof useJournal.getState>) => {
+        const list = Object.values(state.entries)
+        return {
+          stats: computeStats(list, state.today, DAY_START_HOUR),
+          earned: earnedIds(computeBadges(list, state.today, DAY_START_HOUR)),
+        }
+      }
+      const before = snapshot(useJournal.getState())
       const kind = await save(date, values)
-      const s = useJournal.getState()
-      const after = computeStats(Object.values(s.entries), s.today, DAY_START_HOUR)
-      setCelebration({ kind, streak: after.currentStreak, backfill: date !== s.today })
+      const state = useJournal.getState()
+      const after = snapshot(state)
+      const badges = computeBadges(Object.values(state.entries), state.today, DAY_START_HOUR).filter(
+        (b) => b.earnedOn && !before.earned.has(b.id) && after.earned.has(b.id),
+      )
+      setCelebration({
+        kind,
+        streak: after.stats.currentStreak,
+        backfill: date !== state.today,
+        badges,
+        usedTicket: after.stats.restUsed > before.stats.restUsed,
+      })
     },
     [save],
   )
@@ -82,13 +102,15 @@ export default function App() {
           <TodayView onSave={handleSave} />
         ) : tab === 'history' ? (
           <HistoryView onSave={handleSave} />
+        ) : tab === 'badges' ? (
+          <BadgesView />
         ) : (
           <SettingsView persisted={persisted} />
         )}
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 border-t border-stone-200 bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur dark:border-stone-800 dark:bg-stone-950/90">
-        <div className="mx-auto grid max-w-md grid-cols-3">
+        <div className="mx-auto grid max-w-md grid-cols-4">
           {TABS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}

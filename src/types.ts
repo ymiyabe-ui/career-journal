@@ -31,4 +31,19 @@ export interface Stats {
   monthEntries: number
   lastEntryDate: string | null
   todayDone: boolean
+  /** 残っているお休み券（いま休み中の分を引いたあと） */
+  restTickets: number
+  /** いま休み中の日数。今日書けばお休み券で埋まる */
+  restPending: number
+  /** これまでに使ったお休み券の枚数 */
+  restUsed: number
+}
+
+export interface Badge {
+  id: string
+  kind: 'streak' | 'total'
+  threshold: number
+  label: string
+  /** 獲得した日。未獲得は null */
+  earnedOn: string | null
 }

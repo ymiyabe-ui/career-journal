@@ -1,15 +1,29 @@
-import { Flame } from 'lucide-react'
+import { Flame, Ticket } from 'lucide-react'
+import { nextStreakMilestone } from '../lib/badges'
 import type { Stats } from '../types'
 
+/** 「あと◯日で…」の予告。次のバッジまでの近さに合わせて言い方を変える */
+function milestoneHint(stats: Stats): string | null {
+  const next = nextStreakMilestone(stats.currentStreak)
+  if (!next) return null
+  const need = next.threshold - stats.currentStreak
+  if (need === 1) {
+    return stats.todayDone ? `明日も書くと「${next.label}」` : `今日書くと「${next.label}」`
+  }
+  return `あと${need}日で「${next.label}」`
+}
+
+function statusHint(stats: Stats): string {
+  const { currentStreak, todayDone, restPending, totalEntries } = stats
+  if (todayDone) return '今日の分は記録済み'
+  if (restPending > 0) return `お休み券で${restPending}日ぶんを埋めます。今日書けば連続がつながります`
+  if (currentStreak > 0) return '今日書けば連続がつながります'
+  return totalEntries > 0 ? '今日からまた積み上げよう' : '今日から始めよう'
+}
+
 export function StreakHeader({ stats }: { stats: Stats }) {
-  const { currentStreak, todayDone } = stats
-  const hint = todayDone
-    ? '今日の分は記録済み'
-    : currentStreak > 0
-      ? '今日書けば連続がつながります'
-      : stats.totalEntries > 0
-        ? '今日からまた積み上げよう'
-        : '今日から始めよう'
+  const { currentStreak, todayDone, restTickets } = stats
+  const milestone = milestoneHint(stats)
 
   return (
     <header className="flex items-center gap-4 px-1 pt-6 pb-4">
@@ -20,13 +34,25 @@ export function StreakHeader({ stats }: { stats: Stats }) {
       >
         <Flame className="size-9" strokeWidth={2.2} />
       </div>
-      <div className="min-w-0">
-        <p className="text-sm text-stone-500 dark:text-stone-400">連続記録</p>
+      <div className="min-w-0 pr-8">
+        <p className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400">
+          連続記録
+          {restTickets > 0 && (
+            <span
+              className="inline-flex items-center gap-0.5 rounded-full bg-accent-soft px-1.5 py-0.5 text-xs font-semibold text-accent-strong"
+              title="1日休んでも連続が切れないお休み券"
+            >
+              <Ticket className="size-3" />
+              お休み券 ×{restTickets}
+            </span>
+          )}
+        </p>
         <p className="leading-none">
           <span className="text-5xl font-bold tabular-nums">{currentStreak}</span>
           <span className="ml-1 text-lg font-semibold">日</span>
         </p>
-        <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">{hint}</p>
+        <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">{statusHint(stats)}</p>
+        {milestone && <p className="mt-0.5 text-xs font-semibold text-accent-strong">{milestone}</p>}
       </div>
     </header>
   )
