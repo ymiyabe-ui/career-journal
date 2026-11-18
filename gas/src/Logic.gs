@@ -155,10 +155,125 @@ function mergeSettings(stored, incoming) {
   return { settings: current, changed: false };
 }
 
+// ---- メモ（暗号化したまま預かる。サーバーは中身を読めない） ----
+
+var MEMO_HEADERS = ['id', 'date', 'createdAt', 'updatedAt', 'deleted', 'iv', 'ct', 'syncedAt'];
+
+var MEMO_ID_RE = /^[A-Za-z0-9-]{8,64}$/;
+var B64_RE = /^[A-Za-z0-9+/]*={0,2}$/;
+var MEMO_CT_MAX = 20000;
+
+/** 暗号化したメモの形を確かめる。削除の印は中身（iv・ct）が空 */
+function isValidMemo(m) {
+  if (!m || typeof m !== 'object') return false;
+  if (typeof m.id !== 'string' || !MEMO_ID_RE.test(m.id)) return false;
+  if (typeof m.date !== 'string' || !DATE_RE.test(m.date)) return false;
+  if (!ISO_RE.test(String(m.createdAt)) || !ISO_RE.test(String(m.updatedAt))) return false;
+  if (m.deleted != null && typeof m.deleted !== 'boolean') return false;
+  if (typeof m.iv !== 'string' || typeof m.ct !== 'string') return false;
+  if (m.iv.length > 64 || m.ct.length > MEMO_CT_MAX) return false;
+  if (!B64_RE.test(m.iv) || !B64_RE.test(m.ct)) return false;
+  if (!m.deleted && (m.iv === '' || m.ct === '')) return false;
+  return true;
+}
+
+function memoFromRow(headers, row) {
+  var get = function (name) {
+    var i = headers.indexOf(name);
+    return i === -1 || row[i] == null ? '' : String(row[i]);
+  };
+  var memo = {
+    id: get('id'),
+    date: get('date'),
+    createdAt: get('createdAt'),
+    updatedAt: get('updatedAt'),
+    iv: get('iv'),
+    ct: get('ct'),
+  };
+  if (get('deleted') === 'TRUE') memo.deleted = true;
+  return memo;
+}
+
+function rowFromMemo(headers, memo, syncedAt) {
+  return headers.map(function (h) {
+    switch (h) {
+      case 'deleted': return memo.deleted ? 'TRUE' : '';
+      case 'syncedAt': return String(syncedAt);
+      default: return memo[h] == null ? '' : String(memo[h]);
+    }
+  });
+}
+
+/** メモを表に取り込み、since より後に変わったメモを返す。規則は applySync と同じ（新しいほうを残す） */
+function applyMemoSync(table, incoming, since, now) {
+  var valid = incoming.filter(isValidMemo);
+  var headers = table.headers.length ? table.headers.slice() : MEMO_HEADERS.slice();
+  MEMO_HEADERS.forEach(function (h) { if (headers.indexOf(h) === -1) headers.push(h); });
+  var idCol = headers.indexOf('id');
+  var syncedCol = headers.indexOf('syncedAt');
+  var rows = table.rows.map(function (r) {
+    var copy = r.slice();
+    while (copy.length < headers.length) copy.push('');
+    return copy;
+  });
+  var index = {};
+  rows.forEach(function (r, i) { index[String(r[idCol])] = i; });
+
+  var accepted = 0;
+  valid.forEach(function (m) {
+    var i = index[m.id];
+    if (i === undefined) {
+      index[m.id] = rows.length;
+      rows.push(rowFromMemo(headers, m, now));
+      accepted++;
+    } else if (memoFromRow(headers, rows[i]).updatedAt < m.updatedAt) {
+      rows[i] = rowFromMemo(headers, m, now);
+      accepted++;
+    }
+  });
+
+  var changed = rows
+    .filter(function (r) { return Number(r[syncedCol]) > since; })
+    .map(function (r) { return memoFromRow(headers, r); });
+
+  return {
+    table: { headers: headers, rows: rows },
+    changed: changed,
+    accepted: accepted,
+    rejected: incoming.length - valid.length,
+  };
+}
+
+/** メモの鍵の材料（合言葉そのものは含まない）の形を確かめる */
+function isValidMemoKey(k) {
+  if (!k || typeof k !== 'object' || k.v !== 1) return false;
+  if (typeof k.iter !== 'number' || k.iter % 1 !== 0 || k.iter < 1 || k.iter > 10000000) return false;
+  var parts = [k.salt, k.iv, k.ct];
+  for (var i = 0; i < parts.length; i++) {
+    if (typeof parts[i] !== 'string' || parts[i] === '' || parts[i].length > 200 || !B64_RE.test(parts[i])) return false;
+  }
+  return true;
+}
+
+/**
+ * メモの鍵は、最初に届いたものを全端末の鍵にする（後から届いた別の鍵では置き換えない）。
+ * 置き換えると、先に書いたメモがほかの端末で読めなくなるため
+ */
+function chooseMemoKey(stored, incoming) {
+  if (isValidMemoKey(stored)) return { key: stored, changed: false };
+  if (isValidMemoKey(incoming)) {
+    var key = { v: 1, salt: incoming.salt, iter: incoming.iter, iv: incoming.iv, ct: incoming.ct };
+    return { key: key, changed: true };
+  }
+  return { key: null, changed: false };
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
     FIXED_HEADERS: FIXED_HEADERS, isValidEntry: isValidEntry, ensureHeaders: ensureHeaders,
     entryFromRow: entryFromRow, rowFromEntry: rowFromEntry, applySync: applySync,
     logicalTodayJst: logicalTodayJst, hasEntryOn: hasEntryOn,
-    isValidSettings: isValidSettings, mergeSettings: mergeSettings };
+    isValidSettings: isValidSettings, mergeSettings: mergeSettings,
+    MEMO_HEADERS: MEMO_HEADERS, isValidMemo: isValidMemo, applyMemoSync: applyMemoSync,
+    isValidMemoKey: isValidMemoKey, chooseMemoKey: chooseMemoKey };
 }

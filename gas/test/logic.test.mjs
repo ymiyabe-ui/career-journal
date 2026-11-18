@@ -141,3 +141,65 @@ test('設定：保存済みの設定が壊れていたら、届いた正しい�
   const incoming = settings('2026-10-03T00:00:00.000Z')
   assert.deepEqual(L.mergeSettings({ broken: true }, incoming), { settings: incoming, changed: true })
 })
+
+// ---- メモ（暗号化したまま預かる） ----
+
+const sealed = (id, updatedAt, extra = {}) => ({
+  id,
+  date: '2026-11-18',
+  createdAt: '2026-11-18T01:00:00.000Z',
+  updatedAt,
+  iv: 'AAAAAAAAAAAAAAAA',
+  ct: 'Y2lwaGVydGV4dA==',
+  ...extra,
+})
+
+test('メモ：空の表に取り込むと固定列ができ、新しいほうだけ上書きする', () => {
+  const first = L.applyMemoSync(empty, [sealed('memo-0001-aaaa', '2026-11-18T01:00:00.000Z')], 0, 1000)
+  assert.deepEqual(first.table.headers, L.MEMO_HEADERS)
+  assert.equal(first.accepted, 1)
+  assert.equal(first.changed[0].ct, 'Y2lwaGVydGV4dA==')
+
+  const older = L.applyMemoSync(first.table, [sealed('memo-0001-aaaa', '2026-11-18T00:00:00.000Z', { ct: 'b2xk' })], 1000, 2000)
+  assert.equal(older.accepted, 0)
+  const newer = L.applyMemoSync(first.table, [sealed('memo-0001-aaaa', '2026-11-18T02:00:00.000Z', { ct: 'bmV3' })], 1000, 2000)
+  assert.equal(newer.accepted, 1)
+  assert.equal(newer.changed[0].ct, 'bmV3')
+})
+
+test('メモ：削除の印は中身が空で取り込め、deleted が戻る', () => {
+  const del = sealed('memo-0001-aaaa', '2026-11-18T02:00:00.000Z', { deleted: true, iv: '', ct: '' })
+  const r = L.applyMemoSync(empty, [del], 0, 1000)
+  assert.equal(r.accepted, 1)
+  assert.equal(r.changed[0].deleted, true)
+  assert.equal(r.changed[0].ct, '')
+})
+
+test('メモ：形のおかしいメモは取り込まない', () => {
+  const bad = [
+    sealed('short', '2026-11-18T01:00:00.000Z'),
+    sealed('memo-0001-aaaa', 'yesterday'),
+    sealed('memo-0002-bbbb', '2026-11-18T01:00:00.000Z', { ct: '' }),
+    sealed('memo-0003-cccc', '2026-11-18T01:00:00.000Z', { ct: 'not base64!' }),
+    sealed('memo-0004-dddd', '2026-11-18T01:00:00.000Z', { ct: 'A'.repeat(20001) }),
+    sealed('memo-0005-eeee', '2026-11-18T01:00:00.000Z', { text: 'x', date: '11/18' }),
+  ]
+  const r = L.applyMemoSync(empty, bad, 0, 1000)
+  assert.equal(r.accepted, 0)
+  assert.equal(r.rejected, bad.length)
+})
+
+test('メモの鍵：最初に届いたものを残し、後から届いた別の鍵では置き換えない', () => {
+  const a = { v: 1, salt: 'c2FsdEE=', iter: 600000, iv: 'aXZB', ct: 'Y3RB' }
+  const b = { v: 1, salt: 'c2FsdEI=', iter: 600000, iv: 'aXZC', ct: 'Y3RC' }
+  const first = L.chooseMemoKey(null, a)
+  assert.equal(first.changed, true)
+  assert.deepEqual(first.key, a)
+  const second = L.chooseMemoKey(first.key, b)
+  assert.equal(second.changed, false)
+  assert.deepEqual(second.key, a)
+  // 余計な項目は保存しない・形が不正なら何もしない
+  assert.deepEqual(L.chooseMemoKey(null, { ...a, passphrase: 'x' }).key, a)
+  assert.deepEqual(L.chooseMemoKey(null, { ...a, v: 2 }), { key: null, changed: false })
+  assert.deepEqual(L.chooseMemoKey(null, undefined), { key: null, changed: false })
+})

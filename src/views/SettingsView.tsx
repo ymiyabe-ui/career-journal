@@ -1,6 +1,7 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { Check, Download, Monitor, Moon, Sun, Upload } from 'lucide-react'
 import { FieldsEditor } from '../components/FieldsEditor'
+import { MemoKeyCard } from '../components/MemoKeyCard'
 import { MilestonesEditor } from '../components/MilestonesEditor'
 import { ReminderCard } from '../components/ReminderCard'
 import { SyncCard } from '../components/SyncCard'
@@ -8,6 +9,7 @@ import { Button, Card } from '../components/ui'
 import { DAY_START_HOUR } from '../config/fields'
 import { downloadBackup, parseBackup } from '../lib/backup'
 import { ACCENTS, loadAccent, loadTheme, saveAccent, saveTheme, type AccentId, type ThemeMode } from '../lib/theme'
+import { exportSealed, useMemos } from '../memoStore'
 import { useJournal } from '../store'
 
 const THEMES: { mode: ThemeMode; label: string; icon: ReactNode }[] = [
@@ -19,6 +21,7 @@ const THEMES: { mode: ThemeMode; label: string; icon: ReactNode }[] = [
 export function SettingsView({ persisted }: { persisted: boolean | null }) {
   const entries = useJournal((s) => s.entries)
   const importEntries = useJournal((s) => s.importEntries)
+  const importSealed = useMemos((s) => s.importSealed)
   const syncing = useJournal((s) => s.syncConfig !== null)
   const [theme, setTheme] = useState(loadTheme)
   const [accent, setAccent] = useState<AccentId>(loadAccent)
@@ -27,8 +30,15 @@ export function SettingsView({ persisted }: { persisted: boolean | null }) {
 
   const onImport = async (file: File) => {
     try {
-      const count = await importEntries(parseBackup(await file.text()))
-      setMessage(count > 0 ? `${count}件を読み込みました` : '新しい記録はありませんでした')
+      const data = parseBackup(await file.text())
+      const count = await importEntries(data.entries)
+      const memoCount = data.memos.length > 0 ? await importSealed(data.memos, data.memoKey) : 0
+      setMessage(
+        count + memoCount > 0
+          ? [count > 0 && `記録${count}件`, memoCount > 0 && `メモ${memoCount}件`].filter(Boolean).join('・') +
+              'を読み込みました'
+          : '新しい記録はありませんでした',
+      )
     } catch (e) {
       setMessage(e instanceof Error ? e.message : '読み込みに失敗しました')
     }
@@ -92,6 +102,8 @@ export function SettingsView({ persisted }: { persisted: boolean | null }) {
 
       <SyncCard />
 
+      <MemoKeyCard />
+
       <ReminderCard />
 
       <Card>
@@ -102,7 +114,7 @@ export function SettingsView({ persisted }: { persisted: boolean | null }) {
             : '記録はこの端末の中だけに保存されています。端末を変えるときや念のための控えに、JSONで書き出してください。'}
         </p>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => downloadBackup(Object.values(entries))}>
+          <Button onClick={async () => downloadBackup(Object.values(entries), await exportSealed())}>
             <Download className="size-4" />
             JSONで書き出す
           </Button>
@@ -124,7 +136,7 @@ export function SettingsView({ persisted }: { persisted: boolean | null }) {
         </div>
         {message && <p className="mt-3 text-sm font-medium text-accent">{message}</p>}
         <p className="mt-3 text-xs text-stone-500">
-          読み込むと、同じ日の記録は更新日時が新しいほうを残します。
+          読み込むと、同じ日の記録は更新日時が新しいほうを残します。メモは暗号化したまま書き出します。
           {persisted === false &&
             ' この端末では保存領域の保護が許可されていません。ホーム画面に追加すると消えにくくなります。'}
         </p>

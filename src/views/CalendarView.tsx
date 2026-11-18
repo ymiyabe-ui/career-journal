@@ -2,10 +2,12 @@ import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, PencilLine } from 'lucide-react'
 import { EntryForm } from '../components/EntryForm'
 import { EntrySummary } from '../components/EntrySummary'
+import { MemoCard } from '../components/MemoCard'
 import { Button, Card } from '../components/ui'
 import { formatMonthJa, monthMatrix, shiftMonth } from '../lib/calendar'
 import { daysBetween, formatDateJa } from '../lib/date'
 import { isFilled } from '../lib/stats'
+import { useMemoDates } from '../memoStore'
 import { useFields, useJournal } from '../store'
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
@@ -18,6 +20,7 @@ export function CalendarView({ onSave }: Props) {
   const today = useJournal((s) => s.today)
   const fields = useFields()
   const entries = useJournal((s) => s.entries)
+  const memoDates = useMemoDates()
   const [month, setMonth] = useState(today.slice(0, 7))
   const [selected, setSelected] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
@@ -68,6 +71,7 @@ export function CalendarView({ onSave }: Props) {
           {weeks.flat().map((date, i) => {
             if (!date) return <div key={`blank-${i}`} />
             const done = isFilled(entries[date])
+            const hasMemo = memoDates.has(date)
             const future = date > today
             const isToday = date === today
             return (
@@ -75,10 +79,10 @@ export function CalendarView({ onSave }: Props) {
                 key={date}
                 type="button"
                 disabled={future}
-                aria-label={`${formatDateJa(date)}${done ? ' 記録あり' : ''}`}
+                aria-label={`${formatDateJa(date)}${done ? ' 記録あり' : ''}${hasMemo ? ' メモあり' : ''}`}
                 aria-pressed={selected === date}
                 onClick={() => select(date)}
-                className={`aspect-square rounded-lg text-sm font-medium tabular-nums transition-colors ${
+                className={`relative aspect-square rounded-lg text-sm font-medium tabular-nums transition-colors ${
                   done
                     ? 'bg-accent text-white dark:text-stone-950'
                     : future
@@ -89,6 +93,14 @@ export function CalendarView({ onSave }: Props) {
                 }`}
               >
                 {Number(date.slice(8))}
+                {hasMemo && (
+                  <span
+                    aria-hidden
+                    className={`absolute bottom-1 left-1/2 size-1 -translate-x-1/2 rounded-full ${
+                      done ? 'bg-white dark:bg-stone-950' : 'bg-accent'
+                    }`}
+                  />
+                )}
               </button>
             )
           })}
@@ -96,44 +108,47 @@ export function CalendarView({ onSave }: Props) {
       </Card>
 
       {selected && (
-        <Card>
-          <h2 className="mb-2 font-bold">{formatDateJa(selected)}</h2>
-          {filled && !editing ? (
-            <>
-              <EntrySummary entry={entry} fields={fields} />
-              <Button variant="ghost" className="mt-3 -ml-2" onClick={() => setEditing(true)}>
-                <PencilLine className="size-4" />
-                編集する
-              </Button>
-            </>
-          ) : (
-            <>
-              {!filled && (
-                <p className="mb-3 text-sm text-stone-600 dark:text-stone-400">
-                  {daysBetween(selected, today) <= 1
-                    ? 'この日の記録はまだありません。書くと連続記録に数えます。'
-                    : 'この日の記録はまだありません。書くと累計にだけ入ります（連続記録には数えません）。'}
-                </p>
-              )}
-              <EntryForm
-                key={`${selected}-${editing}`}
-                fields={fields}
-                initial={filled ? entry.fields : undefined}
-                minimal={false}
-                autoFocus
-                submitLabel={filled ? '更新する' : '記録する'}
-                onCancel={() => {
-                  setEditing(false)
-                  if (!filled) setSelected(null)
-                }}
-                onSubmit={async (values) => {
-                  await onSave(selected, values)
-                  setEditing(false)
-                }}
-              />
-            </>
-          )}
-        </Card>
+        <>
+          <Card>
+            <h2 className="mb-2 font-bold">{formatDateJa(selected)}</h2>
+            {filled && !editing ? (
+              <>
+                <EntrySummary entry={entry} fields={fields} />
+                <Button variant="ghost" className="mt-3 -ml-2" onClick={() => setEditing(true)}>
+                  <PencilLine className="size-4" />
+                  編集する
+                </Button>
+              </>
+            ) : (
+              <>
+                {!filled && (
+                  <p className="mb-3 text-sm text-stone-600 dark:text-stone-400">
+                    {daysBetween(selected, today) <= 1
+                      ? 'この日の記録はまだありません。書くと連続記録に数えます。'
+                      : 'この日の記録はまだありません。書くと累計にだけ入ります（連続記録には数えません）。'}
+                  </p>
+                )}
+                <EntryForm
+                  key={`${selected}-${editing}`}
+                  fields={fields}
+                  initial={filled ? entry.fields : undefined}
+                  minimal={false}
+                  autoFocus
+                  submitLabel={filled ? '更新する' : '記録する'}
+                  onCancel={() => {
+                    setEditing(false)
+                    if (!filled) setSelected(null)
+                  }}
+                  onSubmit={async (values) => {
+                    await onSave(selected, values)
+                    setEditing(false)
+                  }}
+                />
+              </>
+            )}
+          </Card>
+          <MemoCard date={selected} onReflect={filled ? () => setEditing(true) : undefined} />
+        </>
       )}
     </div>
   )

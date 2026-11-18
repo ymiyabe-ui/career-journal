@@ -4,7 +4,11 @@ import { Button, Card } from '../components/ui'
 import { copyText, saveTextFile } from '../lib/download'
 import { isFilled } from '../lib/stats'
 import { buildSummary, PERIODS, resolvePeriod, type PeriodId } from '../lib/summary'
+import { loadPref, savePref } from '../lib/theme'
+import { useMemos } from '../memoStore'
 import { useFields, useJournal } from '../store'
+
+const WITH_MEMOS_KEY = 'cj-summary-memos'
 
 export function SummaryView() {
   const entries = useJournal((s) => s.entries)
@@ -12,6 +16,9 @@ export function SummaryView() {
   const fields = useFields()
   const [period, setPeriod] = useState<PeriodId>('last30')
   const [message, setMessage] = useState<string | null>(null)
+  const memos = useMemos((s) => s.memos)
+  const memosReady = useMemos((s) => s.keyState === 'ready')
+  const [withMemos, setWithMemos] = useState(() => loadPref(WITH_MEMOS_KEY, '0') === '1')
 
   const markdown = useMemo(() => {
     const list = Object.values(entries)
@@ -19,8 +26,9 @@ export function SummaryView() {
       .filter(isFilled)
       .map((e) => e.date)
       .sort()[0]
-    return buildSummary(list, fields, resolvePeriod(period, today, earliest))
-  }, [entries, today, period, fields])
+    const memoList = withMemos && memosReady ? Object.values(memos) : []
+    return buildSummary(list, fields, resolvePeriod(period, today, earliest), memoList)
+  }, [entries, today, period, fields, withMemos, memosReady, memos])
 
   const choose = (id: PeriodId) => {
     setPeriod(id)
@@ -46,6 +54,22 @@ export function SummaryView() {
           </button>
         ))}
       </div>
+
+      {memosReady && (
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="size-4 accent-[var(--color-accent)]"
+            checked={withMemos}
+            onChange={(e) => {
+              setWithMemos(e.target.checked)
+              savePref(WITH_MEMOS_KEY, e.target.checked ? '1' : '0')
+              setMessage(null)
+            }}
+          />
+          メモも入れる
+        </label>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <Button

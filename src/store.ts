@@ -6,10 +6,20 @@ import { pickNewer } from './lib/merge'
 import { activeFields, defaultSettings, sanitizeSettings } from './lib/settings'
 import { isFilled } from './lib/stats'
 import { createDexieRepository } from './storage/dexie'
-import { CURSOR_KEY, fetchTransport, runSync, SETTINGS_KEY, SyncError, type SyncConfig } from './sync/sync'
+import {
+  CURSOR_KEY,
+  fetchTransport,
+  MEMO_SERVER_KEY,
+  runSync,
+  SETTINGS_KEY,
+  SyncError,
+  type MemoSyncResult,
+  type SyncConfig,
+} from './sync/sync'
 import { SCHEMA_VERSION, type AppSettings, type FieldDef, type JournalEntry } from './types'
 
-const repo = createDexieRepository()
+/** 端末の保存先。メモの状態（memoStore.ts）からも使う */
+export const repo = createDexieRepository()
 
 const CONFIG_KEY = 'syncConfig'
 const LAST_SYNCED_KEY = 'lastSyncedAt'
@@ -27,6 +37,8 @@ interface JournalState {
   syncState: SyncState
   syncMessage: string | null
   lastSyncedAt: string | null
+  /** 直近の同期でのメモの結果。メモの状態（memoStore.ts）がこれを見て、届いたメモを読む */
+  memoSync: MemoSyncResult | null
   load(): Promise<void>
   refreshToday(): void
   save(date: string, fields: Record<string, string>): Promise<SaveResult>
@@ -51,27 +63,34 @@ export const useJournal = create<JournalState>((set, get) => {
     void get().sync()
   }
 
-  const syncOnce = async () => {
+  /** もう一度同期したほうがよければ true（鍵が同期先と同じと分かったばかりで、未送信のメモがあるとき） */
+  const syncOnce = async (): Promise<boolean> => {
     const config = get().syncConfig
-    if (!config) return
+    if (!config) return false
     set({ syncState: 'syncing' })
     try {
-      const { applied, rejected, settings } = await runSync(repo, config, fetchTransport)
+      const { applied, rejected, settings, memos } = await runSync(repo, config, fetchTransport)
       const lastSyncedAt = new Date().toISOString()
       await repo.setMeta(LAST_SYNCED_KEY, lastSyncedAt)
       set((s) => ({
         entries: { ...s.entries, ...Object.fromEntries(applied.map((e) => [e.id, e])) },
         settings: settings ?? s.settings,
         syncState: 'idle',
-        syncMessage: rejected > 0 ? `${rejected}件は形が合わず同期できませんでした` : null,
+        syncMessage:
+          rejected + memos.rejected > 0
+            ? `${rejected + memos.rejected}件は形が合わず同期できませんでした`
+            : null,
         lastSyncedAt,
+        memoSync: memos,
       }))
+      return memos.resend
     } catch (e) {
       const offline = e instanceof SyncError && e.code === 'offline'
       set({
         syncState: offline ? 'offline' : 'error',
         syncMessage: e instanceof Error ? e.message : '同期に失敗しました',
       })
+      return false
     }
   }
 
@@ -84,6 +103,7 @@ export const useJournal = create<JournalState>((set, get) => {
     syncState: 'off',
     syncMessage: null,
     lastSyncedAt: null,
+    memoSync: null,
 
     async load() {
       const [list, syncConfig, lastSyncedAt, rawSettings] = await Promise.all([
@@ -150,9 +170,12 @@ export const useJournal = create<JournalState>((set, get) => {
         set({ syncConfig: null, syncState: 'off', syncMessage: null })
         return
       }
-      // 同期先を変えたら最初から取り直し、手元の記録は全部送る
+      // 同期先を変えたら最初から取り直し、手元の記録は全部送る。
+      // メモは、新しい同期先の鍵を確かめてから送る
       await repo.setMeta(CURSOR_KEY, 0)
+      await repo.setMeta(MEMO_SERVER_KEY, undefined)
       await repo.putLocal(Object.values(get().entries))
+      await repo.putLocalMemos(await repo.listMemos())
       set({ syncConfig: config, syncState: 'idle', syncMessage: null })
       await get().sync()
     },
@@ -166,7 +189,7 @@ export const useJournal = create<JournalState>((set, get) => {
       running = (async () => {
         do {
           again = false
-          await syncOnce()
+          if (await syncOnce()) again = true
         } while (again)
       })()
       try {

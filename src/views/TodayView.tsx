@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { History, PencilLine } from 'lucide-react'
 import { EntryForm } from '../components/EntryForm'
 import { EntrySummary } from '../components/EntrySummary'
+import { MemoCard } from '../components/MemoCard'
 import { Button, Card } from '../components/ui'
 import { formatDateJa, shiftDate } from '../lib/date'
 import { isFilled } from '../lib/stats'
@@ -21,6 +22,9 @@ export function TodayView({ onSave }: Props) {
   const [editing, setEditing] = useState(false)
   const [backfilling, setBackfilling] = useState(false)
   const [minimal, setMinimal] = useState(() => loadPref(MINIMAL_KEY, '0') === '1')
+  // 日報をコピーしたあとに振り返りへ進んだ回数。入力欄を作り直してそこへ移る
+  const [reflectTick, setReflectTick] = useState(0)
+  const entryRef = useRef<HTMLDivElement>(null)
 
   const todayEntry = entries[today]
   const yesterday = shiftDate(today, -1)
@@ -45,40 +49,51 @@ export function TodayView({ onSave }: Props) {
     </button>
   )
 
+  const reflect = () => {
+    if (isFilled(todayEntry)) setEditing(true)
+    setReflectTick((n) => n + 1)
+    requestAnimationFrame(() => entryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
+
   return (
     <div className="space-y-4">
-      <Card>
-        <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="font-bold">
-            今日 <span className="text-sm font-normal text-stone-500">{formatDateJa(today)}</span>
-          </h2>
-          {(!isFilled(todayEntry) || editing) && modeToggle}
-        </div>
+      <MemoCard date={today} onReflect={reflect} />
 
-        {isFilled(todayEntry) && !editing ? (
-          <>
-            <EntrySummary entry={todayEntry} fields={fields} />
-            <Button variant="ghost" className="mt-3 -ml-2" onClick={() => setEditing(true)}>
-              <PencilLine className="size-4" />
-              編集する
-            </Button>
-          </>
-        ) : (
-          <EntryForm
-            key={`${today}-${editing}`}
-            fields={fields}
-            initial={todayEntry && !todayEntry.deleted ? todayEntry.fields : undefined}
-            minimal={minimal}
-            autoFocus
-            submitLabel={editing ? '更新する' : '記録する'}
-            onCancel={editing ? () => setEditing(false) : undefined}
-            onSubmit={async (values) => {
-              await onSave(today, values)
-              setEditing(false)
-            }}
-          />
-        )}
-      </Card>
+      <div ref={entryRef} className="scroll-mt-4">
+        <Card>
+          <div className="mb-3 flex items-baseline justify-between">
+            <h2 className="font-bold">
+              今日 <span className="text-sm font-normal text-stone-500">{formatDateJa(today)}</span>
+            </h2>
+            {(!isFilled(todayEntry) || editing) && modeToggle}
+          </div>
+
+          {isFilled(todayEntry) && !editing ? (
+            <>
+              <EntrySummary entry={todayEntry} fields={fields} />
+              <Button variant="ghost" className="mt-3 -ml-2" onClick={() => setEditing(true)}>
+                <PencilLine className="size-4" />
+                編集する
+              </Button>
+            </>
+          ) : (
+            <EntryForm
+              key={`${today}-${editing}-${reflectTick}`}
+              fields={fields}
+              initial={todayEntry && !todayEntry.deleted ? todayEntry.fields : undefined}
+              minimal={minimal}
+              // 開いたときはメモを先に書けるよう、入力欄に移らない
+              autoFocus={editing || reflectTick > 0}
+              submitLabel={editing ? '更新する' : '記録する'}
+              onCancel={editing ? () => setEditing(false) : undefined}
+              onSubmit={async (values) => {
+                await onSave(today, values)
+                setEditing(false)
+              }}
+            />
+          )}
+        </Card>
+      </div>
 
       {canBackfill &&
         (backfilling ? (

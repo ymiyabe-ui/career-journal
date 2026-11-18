@@ -4,9 +4,11 @@
 //   SPREADSHEET_ID … 記録を溜めるスプレッドシート（setup で自動作成）
 //   APP_URL        … リマインドメールに載せるアプリのURL（任意）
 //   REMIND_HOUR    … リマインドの時刻（任意、既定 21）
+//   MEMO_KEY       … メモの鍵の材料（アプリが最初に送ったものを自動で保存。合言葉そのものではない）
 
 var SHEET_NAME = 'entries';
 var SETTINGS_SHEET_NAME = 'settings';
+var MEMO_SHEET_NAME = 'memos';
 var DAY_START_HOUR = 4;
 
 function doGet() {
@@ -35,6 +37,13 @@ function doPost(e) {
     // 設定（入力項目・バッジのしきい値）。古い版のアプリは settings を送らないので、無くても動く
     var settings = mergeSettings(readSettings_(), body.settings);
     if (settings.changed) writeSettings_(settings.settings);
+    // メモ。暗号化したまま預かり、中身は読まない。古い版のアプリは memos を送らないので、無くても動く
+    var memoKey = chooseMemoKey(readMemoKey_(), body.memoKey);
+    if (memoKey.changed) writeMemoKey_(memoKey.key);
+    var memoSheet = getMemoSheet_();
+    var memoIncoming = Array.isArray(body.memos) ? body.memos : [];
+    var memoResult = applyMemoSync(readTable_(memoSheet), memoIncoming, Number(body.since) || 0, now);
+    if (memoResult.accepted > 0) writeTable_(memoSheet, memoResult.table);
     return json_({
       ok: true,
       serverTime: now,
@@ -42,6 +51,9 @@ function doPost(e) {
       accepted: result.accepted,
       rejected: result.rejected,
       settings: settings.settings,
+      memos: memoResult.changed,
+      memoKey: memoKey.key,
+      memoRejected: memoResult.rejected,
     });
   } finally {
     lock.releaseLock();
@@ -112,6 +124,31 @@ function writeSettings_(settings) {
   var range = sheet.getRange(1, 1, 2, 3);
   range.setNumberFormat('@');
   range.setValues([['key', 'value', 'updatedAt'], ['app', JSON.stringify(settings), settings.updatedAt]]);
+}
+
+function readMemoKey_() {
+  var raw = PropertiesService.getScriptProperties().getProperty('MEMO_KEY');
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    return null;
+  }
+}
+
+function writeMemoKey_(key) {
+  PropertiesService.getScriptProperties().setProperty('MEMO_KEY', JSON.stringify(key));
+}
+
+function getMemoSheet_() {
+  var ss = getSpreadsheet_();
+  var sheet = ss.getSheetByName(MEMO_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(MEMO_SHEET_NAME);
+    writeTable_(sheet, { headers: MEMO_HEADERS.slice(), rows: [] });
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
 }
 
 function getSheet_() {

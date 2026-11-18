@@ -1,5 +1,6 @@
 import { endOfMonth, format, parseISO, startOfMonth, subMonths } from 'date-fns'
-import type { FieldDef, JournalEntry } from '../types'
+import { MEMO_MARKS } from '../config/memo'
+import type { FieldDef, JournalEntry, Memo } from '../types'
 import { daysBetween, formatShortJa, formatSlash, shiftDate } from './date'
 import { isFilled } from './stats'
 import { countWins } from './trends'
@@ -47,6 +48,7 @@ export function buildSummary(
   entries: JournalEntry[],
   fields: FieldDef[],
   range: { from: string; to: string },
+  memos: Memo[] = [],
 ): string {
   const list = entries
     .filter(isFilled)
@@ -60,7 +62,10 @@ export function buildSummary(
     `- 記入日数：${list.length}日 / ${days}日`,
     `- 達成の数：${list.reduce((n, e) => n + countWins(e), 0)}件`,
   ]
-  if (list.length === 0) return [...lines, '', 'この期間の記録はありません。', ''].join('\n')
+  const memoLines = buildMemoSection(memos, range)
+  if (list.length === 0 && memoLines.length === 0) {
+    return [...lines, '', 'この期間の記録はありません。', ''].join('\n')
+  }
 
   for (const field of fields) {
     const rows = list.filter((e) => (e.fields[field.id] ?? '').trim() !== '')
@@ -79,5 +84,34 @@ export function buildSummary(
       }
     }
   }
-  return [...lines, ''].join('\n')
+  return [...lines, ...memoLines, ''].join('\n')
+}
+
+function memoLabel(m: Memo): string {
+  if (m.kind === 'life') return '日常'
+  const mark = MEMO_MARKS.find((x) => x.id === m.mark)
+  return mark ? `仕事・${mark.label}` : '仕事'
+}
+
+/** メモを日付ごとにまとめた「## メモ」の節。期間にメモが無ければ空 */
+function buildMemoSection(memos: Memo[], range: { from: string; to: string }): string[] {
+  const list = memos
+    .filter((m) => m.date >= range.from && m.date <= range.to && m.text.trim() !== '')
+    .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt))
+  if (list.length === 0) return []
+  const out = ['', '## メモ', '']
+  let current = ''
+  for (const m of list) {
+    if (m.date !== current) {
+      current = m.date
+      out.push(`- ${formatShortJa(m.date)}`)
+    }
+    const text = m.text
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .join(' / ')
+    out.push(`  - [${memoLabel(m)}] ${text}`)
+  }
+  return out
 }

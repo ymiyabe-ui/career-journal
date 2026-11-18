@@ -1,4 +1,4 @@
-import type { JournalEntry } from '../types'
+import type { JournalEntry, SealedMemo } from '../types'
 
 /**
  * 保存先の抽象。画面側はこの形だけを使い、保存先（IndexedDB／テスト用のメモリ）を知らない。
@@ -19,4 +19,15 @@ export interface EntryRepository {
   clearPending(ids: string[]): Promise<void>
   getMeta<T>(key: string): Promise<T | undefined>
   setMeta(key: string, value: unknown): Promise<void>
+
+  /** メモ（暗号化したまま）。削除の印が付いたものも含めて全件返す */
+  listMemos(): Promise<SealedMemo[]>
+  /** この端末で書いた・直したメモを保存し、未送信の印を付ける */
+  putLocalMemos(memos: SealedMemo[]): Promise<void>
+  /** 同期で届いたメモを保存する。手元のほうが新しいものは上書きしない。実際に保存したものを返す */
+  putRemoteMemos(memos: SealedMemo[]): Promise<SealedMemo[]>
+  pendingMemoIds(): Promise<string[]>
+  clearPendingMemos(ids: string[]): Promise<void>
+  /** この端末のメモを全部消す（合言葉を忘れて決め直すとき。同期先には何も送らない） */
+  clearMemos(): Promise<void>
 }

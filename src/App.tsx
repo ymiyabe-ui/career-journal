@@ -6,6 +6,7 @@ import { SyncBadge } from './components/SyncBadge'
 import { DAY_START_HOUR } from './config/fields'
 import { computeBadges, earnedIds } from './lib/badges'
 import { computeStats } from './lib/stats'
+import { useMemos } from './memoStore'
 import { requestPersistence } from './storage/dexie'
 import { useJournal } from './store'
 import { BadgesView } from './views/BadgesView'
@@ -32,6 +33,7 @@ export default function App() {
 
   useEffect(() => {
     void load()
+    void useMemos.getState().load()
     void requestPersistence().then(setPersisted)
   }, [load])
 
